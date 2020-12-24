@@ -1,0 +1,81 @@
+---
+title: 'TCGA Lung Cancer Data Analysis: Data Preprocessing'
+author: "Elishua Shumpert"
+date: "12/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(TCGA2STAT)
+library(TCGAretriever)
+library(tidyverse)
+library(rlang)
+```
+
+### Importing datasets and preprocessing
+```{r message = FALSE, warning=FALSE}
+getLungCancerData = getTCGA(disease="LUAD", data.type="RNASeq2", clinical=TRUE)
+lung_clinical_data = getLungCancerData$clinical
+lung_gene_data = getLungCancerData$merged.dat
+
+# Change row names to patient IDs in the gene dataset
+lung_gene_data = lung_gene_data %>% remove_rownames %>% column_to_rownames(var="bcr")
+
+# Merge gene dataset with the clinical data set
+lung_data = merge(lung_clinical_data, lung_gene_data, by=0)
+
+# Changing some of the column names for readability
+lung_data = lung_data %>% rename(patient_ID = Row.names, age = yearstobirth, number_packs_smoked_per_year = numberpackyearssmoked, vital_status = vitalstatus, days_to_death = daystodeath, pathologic_stage = pathologicstage, radiation_therapy = radiationtherapy)
+
+# Excluding columns that are not of interest
+lung_data = lung_data[, -c(2, 6, 7, 9:11, 13, 14, 16, 17, 19, 20, 22:24)]
+
+# Changing clinical variables from character data types to numeric and factor data types
+cols_to_numeric = c(2, 4, 8)
+cols_to_factor = c(5:7, 9)
+lung_data[cols_to_numeric] = sapply(lung_data[cols_to_numeric], as.numeric)
+lung_data$vital_status = as.factor(as.numeric(lung_data$vital_status))
+lung_data$pathologic_stage = as.factor(lung_data$pathologic_stage)
+lung_data$gender = as.factor(lung_data$gender)
+lung_data$radiation_therapy = as.factor(lung_data$radiation_therapy)
+lung_data$race = as.factor(lung_data$race)
+```
+
+### Imputing Missing Values
+```{r}
+# Run summary of clinical variables to check for missing values and statistics
+lung_clinical_data_2 = lung_data[, c(2:9)]
+summary(lung_clinical_data_2)
+
+# Imputing missing values of the age & number of packs smoked per year columns with the mean
+lung_data = lung_data %>% mutate(age = replace(age, is.na(age), mean(age, na.rm = TRUE)))
+lung_data = lung_data %>% mutate(number_packs_smoked_per_year = replace(number_packs_smoked_per_year, is.na(number_packs_smoked_per_year), mean(number_packs_smoked_per_year, na.rm = TRUE)))
+
+# Round age to a whole number and number of packs smoked per year to 1 decimal place
+lung_data$age = as.integer(lung_data$age)
+lung_data$number_packs_smoked_per_year = round(lung_data$number_packs_smoked_per_year, 1)
+
+# Imputing missing values for pathologic_stage, radiation therapy, and race with the mode
+factors_to_impute = list(pathologic_stage = "stage ib", radiation_therapy = "no", race = "white")
+lung_data = lung_data %>% replace_na(factors_to_impute)
+
+# Impute mean death of days for the observation with 0 days to death
+lung_data$days_to_death[lung_data$days_to_death == 0] = mean(lung_data$days_to_death, na.rm = TRUE)
+
+# Log-transform days_to_death to get it on a continuous scale
+lung_data = lung_data %>% mutate(log_days_to_death = log(days_to_death))
+
+# Round log_days_to_death to 2 decimal places
+lung_data$log_days_to_death = round(lung_data$log_days_to_death, 2)
+lung_data = lung_data[, -4] 
+
+# Relocate the newly created log_days_to_death column so that it is located after the days_to_death column
+lung_data = lung_data %>% relocate(log_days_to_death, .after = vital_status)
+
+# Omit missing values for log_days_to_death
+lung_data = na.omit(lung_data)
+
+# Writing finalized clean dataset to a csv file
+write_csv(lung_data, "lungcancerdata.csv")
+```
+
