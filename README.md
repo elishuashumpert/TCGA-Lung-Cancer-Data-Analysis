@@ -1,1 +1,3 @@
 # TCGA-Lung-Cancer-Data-Analysis
+
+This data analysis project was completed for my Stats 600 course on Regression Analysis in Fall 2020. The data analyzed contain samples of lung cancer patients along with different clinical factors and their genomic information. In this analysis, I wanted to answer the following questions: What mRNA gene expressions are most associated with the survival time of a lung cancer patient? Is smoking more strongly related to the survival time of a lung cancer patient compared to other clinical factors including race, gender and age? Is radiation therapy an effective means of lengthening the survival time of a patient? 
